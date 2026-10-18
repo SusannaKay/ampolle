@@ -64,6 +64,9 @@ footer{display:flex;justify-content:center;gap:10px;flex:none}
 .card p{margin:0 0 20px;color:var(--muted)}
 .big{font-size:52px}
 .pbtn{width:100%;height:52px;border:0;border-radius:16px;font-size:17px;font-weight:700;color:#1b0f33;background:linear-gradient(90deg,#ffd60a,#ff8fab);cursor:pointer;font-family:inherit}
+.sbtn{width:100%;height:48px;margin-top:10px;border:1px solid rgba(255,255,255,.2);border-radius:16px;font-size:16px;font-weight:600;color:var(--ink);background:rgba(255,255,255,.08);cursor:pointer;font-family:inherit}
+.sbtn:active,.pbtn:active{transform:scale(.97)}
+.lbtn{margin-top:14px;border:0;background:none;color:var(--muted);font-size:14px;text-decoration:underline;cursor:pointer;font-family:inherit}
 .conf{position:fixed;top:-12px;width:9px;height:14px;z-index:55;pointer-events:none;animation:fall linear forwards}
 @keyframes fall{to{transform:translateY(110vh) rotate(720deg)}}
 </style>
@@ -86,6 +89,7 @@ footer{display:flex;justify-content:center;gap:10px;flex:none}
 </div>
 <div id="toast"></div>
 <div class="ov" id="winOv"><div class="card"><div class="big">✨</div><h2>Pozioni pronte!</h2><p id="winTxt"></p><button class="pbtn" id="next">Prossimo livello</button></div></div>
+<div class="ov" id="stuckOv"><div class="card"><div class="big">🫙</div><h2>Nessuna mossa</h2><p id="stuckTxt"></p><button class="pbtn" id="stuckAdd">🧪 Aggiungi un'ampolla</button><button class="sbtn" id="stuckRestart">↻ Ricomincia il livello</button><button class="lbtn" id="stuckUndo">Annulla l'ultima mossa</button></div></div>
 
 <script>
 // LOGIC START
@@ -187,6 +191,30 @@ function canPour(i,j){
   let run=0;for(let k=s.length-1;k>=0&&s[k].c===c&&!s[k].h;k--)run++;
   return Math.min(run,CAP-d.length);
 }
+
+// a move is useful unless it just moves a whole single-colour stack into an empty flask
+function hasUsefulMove(){
+  const T=st.tubes;
+  for(let i=0;i<T.length;i++){
+    const s=T[i];if(!s.length||isDone(s))continue;
+    for(let j=0;j<T.length;j++){
+      const n=canPour(i,j);if(!n)continue;
+      if(!T[j].length&&n===s.length)continue;
+      return true;
+    }
+  }
+  return false;
+}
+function showStuck(){
+  const canAdd=!st.extra;
+  $('#stuckTxt').textContent=canAdd
+    ?'Le pozioni sono bloccate. Aggiungi un\'ampolla vuota per sbloccarle oppure ricomincia il livello.'
+    :'Le pozioni sono bloccate e hai già usato l\'ampolla extra. Ricomincia il livello o annulla qualche mossa.';
+  $('#stuckAdd').style.display=canAdd?'':'none';
+  $('#stuckUndo').style.display=st.hist.length?'':'none';
+  $('#stuckOv').classList.add('show');sNo();buzz([30,50,30]);
+}
+function hideStuck(){$('#stuckOv').classList.remove('show')}
 
 function startLevel(lv){
   LV=lv;save('lv',lv);
@@ -304,6 +332,7 @@ async function pour(i,j,n){
   updateButtons();
   if(won()){await wait(450);win();return}
   busy=false;
+  if(!hasUsefulMove()){await wait(350);showStuck()}
 }
 
 function confetti(){
@@ -326,6 +355,9 @@ function win(){
 $('#next').onclick=()=>{$('#winOv').classList.remove('show');startLevel(LV+1)};
 $('#undo').onclick=()=>{if(busy||!st.hist.length)return;st.tubes=st.hist.pop();st.moves++;sel=-1;render();updateButtons();sTap()};
 $('#restart').onclick=()=>{if(busy)return;startLevel(LV)};
+$('#stuckAdd').onclick=()=>{hideStuck();$('#add').onclick()};
+$('#stuckRestart').onclick=()=>{hideStuck();$('#restart').onclick()};
+$('#stuckUndo').onclick=()=>{hideStuck();$('#undo').onclick()};
 $('#add').onclick=()=>{if(busy||st.extra)return;st.extra=true;st.tubes.push([]);st.hist.forEach(h=>h.push([]));sel=-1;render();updateButtons();sTap();toast('Ampolla extra aggiunta (una per livello)')};
 $('#mute').onclick=()=>{muted=!muted;save('mute',muted);updateButtons()};
 $('#hint').onclick=()=>{
